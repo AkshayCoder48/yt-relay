@@ -1,3 +1,4 @@
 yt-dlp[default]
 fastapi
 uvicorn[standard]
+bgutil-ytdlp-pot-provider==2.0.2
