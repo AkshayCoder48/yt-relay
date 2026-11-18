@@ -155,6 +155,8 @@ def status(request: Request):
     return {"busy": _lock.locked(), "max_height": _MAX_HEIGHT,
             "cookies": bool(os.getenv("YT_COOKIES", "").strip()),
             "deno": bool(shutil.which("deno")),
+            "deno_path": shutil.which("deno"),
+            "home": os.path.expanduser("~"),
             "pot": bool(shutil.which("deno") and _POT_HOME.is_dir())}
 
 
