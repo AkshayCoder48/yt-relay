@@ -39,7 +39,11 @@ _CLIENTS = ["web", "tv", "android_vr", "ios", "mweb",
             "web_embedded", "tv_embedded", "default"]
 
 _COOKIES_PATH = Path("/tmp/relay_cookies.txt")
-_POT_HOME = Path(os.getenv("BGUTIL_SERVER_HOME", "/opt/bgutil/server"))
+# default matches the plugin's own default (~/.cache resolution is handled
+# by the plugin); BGUTIL_SERVER_HOME env overrides it.
+_POT_HOME = Path(os.getenv(
+    "BGUTIL_SERVER_HOME",
+    str(Path.home() / "bgutil-ytdlp-pot-provider" / "server")))
 
 
 def _cookies_file() -> str | None:
