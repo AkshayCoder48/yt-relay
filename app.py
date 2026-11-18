@@ -5,6 +5,11 @@ Same contract as the supoclip fetch-relay route:
 - POST /fetch-relay/probe     {"url", "video_id"}
 - POST /fetch-relay/download  {"url", "video_id"}   -> video/mp4 stream
 Header: x-relay-token: <FETCH_RELAY_TOKEN>. One download at a time.
+
+Includes the bgutil-ytdlp-pot-provider plugin (script mode, deno) so the
+web player client can present a PO token from datacenter IPs.
+Env: BGUTIL_SERVER_HOME (default /opt/bgutil/server), YT_COOKIES
+(Netscape cookie jar contents), YOUTUBE_MAX_HEIGHT.
 """
 import asyncio
 import logging
@@ -28,9 +33,13 @@ _lock = asyncio.Lock()
 _VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,16}$")
 _ALLOWED_HOSTS = ("youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com")
 _MAX_HEIGHT = max(144, min(int(os.getenv("YOUTUBE_MAX_HEIGHT", "720") or 720), 1080))
-_CLIENTS = ["android_vr", "tv", "ios", "mweb", "tv_embedded", "default"]
+# web first: the bgutil POT plugin (script mode) unlocks it from
+# datacenter IPs; embedded clients next; native apps last.
+_CLIENTS = ["web", "tv", "android_vr", "ios", "mweb",
+            "web_embedded", "tv_embedded", "default"]
 
 _COOKIES_PATH = Path("/tmp/relay_cookies.txt")
+_POT_HOME = Path(os.getenv("BGUTIL_SERVER_HOME", "/opt/bgutil/server"))
 
 
 def _cookies_file() -> str | None:
@@ -80,8 +89,13 @@ def _opts(client: str, outtmpl: str | None = None, download: bool = False) -> di
         opts["concurrent_fragment_downloads"] = 4
     else:
         opts["skip_download"] = True
+    ext_args: dict = {}
     if client != "default":
-        opts["extractor_args"] = {"youtube": {"player_client": [client]}}
+        ext_args["youtube"] = {"player_client": [client]}
+    if _POT_HOME.is_dir():
+        ext_args["youtubepot-bgutilscript"] = {"server_home": [str(_POT_HOME)]}
+    if ext_args:
+        opts["extractor_args"] = ext_args
     cookies = _cookies_file()
     if cookies:
         opts["cookiefile"] = cookies
@@ -135,7 +149,9 @@ def status(request: Request):
     if not _authorized(request):
         raise HTTPException(403, "unauthorized")
     return {"busy": _lock.locked(), "max_height": _MAX_HEIGHT,
-            "cookies": bool(os.getenv("YT_COOKIES", "").strip())}
+            "cookies": bool(os.getenv("YT_COOKIES", "").strip()),
+            "deno": bool(shutil.which("deno")),
+            "pot": bool(shutil.which("deno") and _POT_HOME.is_dir())}
 
 
 @app.post("/fetch-relay/probe")
@@ -147,7 +163,7 @@ async def probe(request: Request):
     _validate(url, str(body.get("video_id") or "x0x0x0x0x0x"))
     import yt_dlp
     results = [await asyncio.to_thread(_probe_one, url, c)
-               for c in ["android_vr", "tv", "ios", "mweb", "default"]]
+               for c in ["web", "android_vr", "tv", "ios", "mweb", "default"]]
     return {"yt_dlp_version": yt_dlp.version.__version__,
             "deno": bool(shutil.which("deno")), "results": results}
 
