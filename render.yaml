@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: clip-api
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: CLIP_API_TOKEN
+        generateValue: true
